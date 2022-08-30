@@ -1,0 +1,31 @@
+AUTO_RESUME: true
+GPUS: (0,)
+DATASET:
+  DATASET: 'dogcat'
+  TRAIN_DATA_ROOT: 'data/train/'
+  TEST_DATA_ROOT: 'data/test1/'
+MODEL:
+  NAME: 'baseline'
+  BACKBONE:
+    NAME: 'resnet152'
+    PRETRAINED_PATH: ''
+  HEAD:
+    NAME: 'simple_classifier_head'
+    INPUT_DIM: 1000
+    HIDDEN_DIMS: [256, 128, 96]
+    OUTPUT_DIM: 2
+    BN: True
+    ACTIVATION: 'leaky_relu'
+TRAIN:
+  BATCH_SIZE: 16
+  SHUFFLE: true
+  USE_GPU: true
+  NUM_WORKERS: 4
+  PRINT_FREQ: 30
+  MAX_EPOCH: 10
+  OPTIMIZER: 'adam'
+  LR: 0.001
+  LR_DECAY: 0.95
+  WEIGHT_DECAY: 1.0e-4
+OUTPUT_PATH: '../output'
+DEVICE: 'cuda'

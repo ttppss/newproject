@@ -14,6 +14,8 @@ _C.DATASET.DATASET = 'dogcat'
 _C.DATASET.DATA_ROOT = ''
 _C.DATASET.TRAIN_DATA_ROOT = 'data/train/'
 _C.DATASET.TEST_DATA_ROOT = 'data/test1/'
+_C.DATASET.TRAIN_ANNO = ''
+_C.DATASET.TEST_ANNO = ''
 
 _C.MODEL = CN()
 _C.MODEL.NAME = 'baseline'

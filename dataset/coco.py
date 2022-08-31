@@ -10,9 +10,9 @@ import numpy as np
 from pycocotools.coco import COCO
 import torchvision.datasets as dataset
 from torch.utils.data import DataLoader
+from .dataset_builder import DATASET_REGISTRY
+from yacs.config import CfgNode
 
-val_info = '/home/zinan/dataset/demo/COCO/annotations/instances_train2017_minicoco.json'
-val_image = '/home/zinan/dataset/demo/COCO/train2017'
 
 data_transforms = transforms.Compose(
     [
@@ -20,6 +20,7 @@ data_transforms = transforms.Compose(
         transforms.RandomHorizontalFlip(0.5),
         transforms.RandomAdjustSharpness(0.5),
         transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]
 )
 
@@ -41,6 +42,13 @@ data_transforms = transforms.Compose(
 #                 print("No bbox found for object ", obj)
 #
 #         return res  # [[xmin, ymin, xmax, ymax, label_idx], ... ]
+
+# todo: set the transform separately for training and validation.
+@DATASET_REGISTRY.register('coco')
+def build_coco_dataset(cfg: CfgNode):
+    train_dataset = COCODetection(cfg.DATASET.TRAIN_DATA_ROOT, cfg.DATASET.TRAIN_ANNO, transform=data_transforms)
+    val_dataset = COCODetection(cfg.DATASET.TEST_DATA_ROOT, cfg.DATASET.TEST_ANNO, transform=data_transforms)
+    return train_dataset, val_dataset
 
 
 class COCODetection(data.Dataset):
@@ -272,11 +280,11 @@ class COCODetection(data.Dataset):
 
 
 
-if __name__=='__main__':
-    dataset = COCODetection(val_image, val_info, transform=data_transforms)
-    loader = DataLoader(dataset)
-
-    for info in loader:
-        print(info)
+# if __name__=='__main__':
+#     dataset = COCODetection(val_image, val_info, transform=data_transforms)
+#     loader = DataLoader(dataset)
+#
+#     for info in loader:
+#         print(info)
 
 

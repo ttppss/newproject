@@ -10,9 +10,10 @@ import torch
 from configs import cfg, update_cfg
 from tools.utils import create_logger
 from visdom import Visdom
-from tools.utils import count_flop
+from tools.utils import count_flop, collate_fn, visualize_data
 
 from models.builder import build_backbone
+from dataset.dataset_builder import build_dataset
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -86,6 +87,28 @@ def main():
     # calculate the number of parameters and FLOPs using dummy data.
     dummy_data = torch.randn(1, 3, cfg.TRAIN.INPUT_SIZE[0], cfg.TRAIN.INPUT_SIZE[1]).to(cfg.DEVICE)
     count_flop(model, dummy_data)
+
+    # construct the dataset
+    train_dataset, val_dataset = build_dataset(cfg)
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
+        shuffle=cfg.TRAIN.SHUFFLE,
+        num_workers=cfg.TRAIN.NUM_WORKERS,
+        collate_fn=collate_fn
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
+        shuffle=False,
+        num_workers=cfg.TRAIN.NUM_WORKERS,
+        collate_fn=collate_fn
+    )
+
+    visualize_data(train_loader, 'training data', 'training data visualization')
+    visualize_data(val_loader, 'validation data', 'validation data visualization')
+
+
 
 if __name__ == '__main__':
     main()

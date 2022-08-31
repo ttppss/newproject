@@ -1,9 +1,11 @@
 AUTO_RESUME: true
 GPUS: (0,)
 DATASET:
-  DATASET: 'dogcat'
-  TRAIN_DATA_ROOT: 'data/train/'
-  TEST_DATA_ROOT: 'data/test1/'
+  DATASET: 'coco'
+  TRAIN_DATA_ROOT: '/home/zinan/dataset/demo/COCO/train2017'
+  TEST_DATA_ROOT: '/home/zinan/dataset/demo/COCO/val2017'
+  TRAIN_ANNO: '/home/zinan/dataset/demo/COCO/annotations/instances_train2017_minicoco.json'
+  TEST_ANNO: '/home/zinan/dataset/demo/COCO/annotations/instances_val2017_minicoco.json'
 MODEL:
   NAME: 'baseline'
   BACKBONE:
@@ -17,7 +19,7 @@ MODEL:
     BN: True
     ACTIVATION: 'leaky_relu'
 TRAIN:
-  BATCH_SIZE: 16
+  BATCH_SIZE: 2
   SHUFFLE: true
   USE_GPU: true
   NUM_WORKERS: 4

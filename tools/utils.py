@@ -3,10 +3,15 @@ import logging
 import time
 import os
 import inspect
+import torch
 
 from fvcore.nn import FlopCountAnalysis, flop_count_table
+import torchvision
+from visdom import Visdom
+
 
 logger = logging.getLogger(__name__)
+viz = Visdom()
 
 
 def create_logger(cfg, cfg_name):
@@ -70,3 +75,39 @@ def count_flop(model, inp):
     flops = FlopCountAnalysis(model, inp)
     logger.info('\n********** # of parameters and FLOPs **********\n')
     logger.info(flop_count_table(flops))
+
+
+def collate_fn(batch):
+    """
+    Since each image may have a different number of objects, we need a collate function (to be passed to the DataLoader).
+    This describes how to combine these tensors of different sizes. We use lists.
+    Note: this need not be defined in this Class, can be standalone.
+    :param batch: an iterable of N sets from __getitem__()
+    :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels, and difficulties
+    """
+
+    images = list()
+    annos = list()
+
+    for b in batch:
+        images.append(b[0])
+        annos.append(b[1])
+
+    images = torch.stack(images, dim=0)
+
+    return images, annos
+
+
+def visualize_data(data_loader, window_name, title):
+    # TODO: may need a more elegant way to put the images together
+    # when dealing with object detection, the returning data format is like [[img, label], [img, label]]
+    inputs = next(iter(data_loader))
+    inp = inputs[0]
+
+    out = torchvision.utils.make_grid(inp, nrow=5)
+    inp = torch.transpose(out, 0, 2)
+    mean = torch.FloatTensor([0.485, 0.456, 0.406])
+    std = torch.FloatTensor([0.229, 0.224, 0.225])
+    inp = std * inp + mean
+    inp = torch.transpose(inp, 0, 2)
+    viz.images(inp, win=window_name, opts={'title': title})

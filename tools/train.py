@@ -10,7 +10,7 @@ import torch
 from configs import cfg, update_cfg
 from tools.utils import create_logger
 from visdom import Visdom
-from tools.utils import count_flop, collate_fn, visualize_data
+from tools.utils import count_flop, collate_fn, visualize_data, visualize_data_with_bbox
 
 from models.builder import build_backbone
 from dataset.dataset_builder import build_dataset
@@ -105,7 +105,7 @@ def main():
         collate_fn=collate_fn
     )
 
-    visualize_data(train_loader, 'training data', 'training data visualization')
+    visualize_data_with_bbox(train_loader, 'training data', 'training data visualization')
     visualize_data(val_loader, 'validation data', 'validation data visualization')
 
 

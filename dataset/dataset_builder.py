@@ -5,5 +5,5 @@ DATASET_REGISTRY = Registry()
 
 
 def build_dataset(cfg: CfgNode):
-    dataset = DATASET_REGISTRY[cfg.DATASET.DATASET](cfg)
+    dataset = DATASET_REGISTRY[cfg.DATASET.TYPE](cfg)
     return dataset

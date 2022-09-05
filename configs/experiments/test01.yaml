@@ -1,15 +1,16 @@
 AUTO_RESUME: true
 GPUS: (0,)
 DATASET:
-  DATASET: 'coco'
-  TRAIN_DATA_ROOT: '/home/zinan/dataset/demo/COCO/train2017'
-  TEST_DATA_ROOT: '/home/zinan/dataset/demo/COCO/val2017'
-  TRAIN_ANNO: '/home/zinan/dataset/demo/COCO/annotations/instances_train2017_minicoco.json'
-  TEST_ANNO: '/home/zinan/dataset/demo/COCO/annotations/instances_val2017_minicoco.json'
+  TYPE: 'coco'
+  ALBUMENTATION: true
+  TRAIN_DATA_ROOT: '/home/zinan/dataset/tiny_coco-master_0/images/train2017'
+  TEST_DATA_ROOT: '/home/zinan/dataset/tiny_coco-master_0/images/val2017'
+  TRAIN_ANNO: '/home/zinan/dataset/tiny_coco-master_0/annotations/instances_train2017.json'
+  TEST_ANNO: '/home/zinan/dataset/tiny_coco-master_0/annotations/instances_val2017.json'
 MODEL:
   NAME: 'baseline'
   BACKBONE:
-    NAME: 'resnet152'
+    NAME: 'resnet50'
     PRETRAINED_PATH: ''
   HEAD:
     NAME: 'simple_classifier_head'
@@ -19,7 +20,7 @@ MODEL:
     BN: True
     ACTIVATION: 'leaky_relu'
 TRAIN:
-  BATCH_SIZE: 2
+  BATCH_SIZE: 8
   SHUFFLE: true
   USE_GPU: true
   NUM_WORKERS: 4

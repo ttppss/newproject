@@ -4,11 +4,14 @@ import time
 import os
 import inspect
 import torch
+import torchvision.transforms.functional as F
+from torchvision.utils import draw_bounding_boxes
+import numpy as np
+# from skimage.util import img_as_float
 
 from fvcore.nn import FlopCountAnalysis, flop_count_table
 import torchvision
 from visdom import Visdom
-
 
 logger = logging.getLogger(__name__)
 viz = Visdom()
@@ -21,7 +24,7 @@ def create_logger(cfg, cfg_name):
         print('=> creating {}'.format(output_dir))
         output_dir.mkdir()
 
-    dataset = cfg.DATASET.DATASET
+    dataset = cfg.DATASET.TYPE
     model = cfg.MODEL.NAME
     cfg_name = os.path.basename(cfg_name).split('.')[0]
 
@@ -39,6 +42,7 @@ def create_logger(cfg, cfg_name):
     logger.setLevel(logging.INFO)
 
     return logger, str(final_output_dir)
+
 
 def build_from_cfg(cfg, registry, default_args=None):
     """Build a module from config dict.
@@ -98,12 +102,19 @@ def collate_fn(batch):
     return images, annos
 
 
+def xywh2xyxy(bboxes):
+    bboxes[:, 2] = bboxes[:, 0] + bboxes[:, 2]
+    bboxes[:, 3] = bboxes[:, 1] + bboxes[:, 3]
+    return bboxes
+
+
 def visualize_data(data_loader, window_name, title):
     # TODO: may need a more elegant way to put the images together
     # when dealing with object detection, the returning data format is like [[img, label], [img, label]]
     inputs = next(iter(data_loader))
-    inp = inputs[0]
 
+    # add something. If visualize bbox, then...
+    inp = inputs[0]
     out = torchvision.utils.make_grid(inp, nrow=5)
     inp = torch.transpose(out, 0, 2)
     mean = torch.FloatTensor([0.485, 0.456, 0.406])
@@ -111,3 +122,27 @@ def visualize_data(data_loader, window_name, title):
     inp = std * inp + mean
     inp = torch.transpose(inp, 0, 2)
     viz.images(inp, win=window_name, opts={'title': title})
+
+
+def visualize_data_with_bbox(data_loader, window_name, title):
+    inputs = next(iter(data_loader))
+    for i in range(inputs[0].shape[0]):
+        inp = torch.transpose(inputs[0][i], 0, 2)
+        mean = torch.FloatTensor([0.485, 0.456, 0.406])
+        std = torch.FloatTensor([0.229, 0.224, 0.225])
+        inp = (std * 255) * inp + mean * 255
+        inp = torch.transpose(inp, 0, 2)
+        inp = draw_bounding_boxes(inp.byte(), xywh2xyxy(torch.as_tensor(inputs[1][i])))
+        inputs[0][i] = inp
+    out = torchvision.utils.make_grid(inputs[0], nrow=5)
+    viz.images(out, win=window_name, opts={'title': title})
+
+
+class SquarePad:
+    def __call__(self, image):
+        w, h = image.size
+        max_wh = np.max([w, h])
+        hp = int((max_wh - w) / 2)
+        vp = int((max_wh - h) / 2)
+        padding = (hp, vp, hp, vp)
+        return F.pad(image, padding, 0, 'constant')

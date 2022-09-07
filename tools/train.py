@@ -106,7 +106,7 @@ def main():
     )
 
     visualize_data_with_bbox(train_loader, 'training data', 'training data visualization')
-    visualize_data(val_loader, 'validation data', 'validation data visualization')
+    visualize_data_with_bbox(val_loader, 'validation data', 'validation data visualization')
 
 
 

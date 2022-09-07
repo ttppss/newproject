@@ -32,7 +32,7 @@ def build_coco_dataset(cfg: CfgNode):
                 A.RandomRotate90(),
                 A.RandomBrightnessContrast(),
                 A.Normalize(),
-            ], bbox_params=A.BboxParams(format='coco', label_fields=['class_labels'])),
+            ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'])),
             'test': A.Compose([
                 A.LongestMaxSize(max_size=max(cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]), interpolation=1),
                 A.PadIfNeeded(min_height=min(cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]),
@@ -40,9 +40,11 @@ def build_coco_dataset(cfg: CfgNode):
                               border_mode=0, value=(0, 0, 0)),
                 A.Resize(cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]),
                 A.Normalize(),
-            ]),
+            ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'])),
         }
     else:
+        # TODO: the transformation below doesn't work, since the bounding box will not adjust accordingly.
+        #  need to change when other things are finished.
         data_transforms = {
             'train': transforms.Compose(
                 [
@@ -80,7 +82,7 @@ class COCODetection(data.Dataset):
                'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
                'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
                'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
-               'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', *
+               'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
                'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
                'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
                'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
@@ -269,12 +271,21 @@ class COCODetection(data.Dataset):
         # bboxes = anno["bboxes"]
         # class_labels = anno['labels']
 
-        img_id = self.ids[index]
-        ann_ids = self.coco.getAnnIds(imgIds=img_id)
-        ann_info = self.coco.load_anns(ann_ids)
+        img_id = self.data_infos[index]['id']
         image = self._load_image(img_id)
-        bboxes = [anno["bbox"] for anno in ann_info]
-        class_labels = [anno["category_id"] for anno in ann_info]
+        annos = self.get_ann_info(index)
+        bboxes = annos['bboxes']
+        class_labels = annos['labels']
+
+        # note: The code below also works, but the code above is more neat.
+        #  Also, the code above can generate CORRECT class label, however, the code below need to be transformed
+        #  using the COCO_LABEL_MAP above, otherwise there will be a mismatch.
+        # img_id = self.ids[index]
+        # ann_ids = self.coco.getAnnIds(imgIds=img_id)
+        # ann_info = self.coco.load_anns(ann_ids)
+        # image = self._load_image(img_id)
+        # bboxes = [anno["bbox"] for anno in ann_info]
+        # class_labels = [anno["category_id"] for anno in ann_info]
 
         if self.transform is not None:
             if self.cfg.DATASET.ALBUMENTATION:
@@ -288,34 +299,10 @@ class COCODetection(data.Dataset):
                 transformed_image = self.transform(image)
                 transformed_bboxes = bboxes
 
-        # NOTE: since I change the __getitem__ function, and did not use _parse_ann_info,
-        #  the "bboxes" above is still of coco format, which is [xmin, ymin, width, height].
-        return transformed_image, transformed_bboxes, class_labels
+        # Note: after using get_anno_info, the output bounding box is in the format of [xmin, ymin, xmax, ymax].
+        #  so I changed the parameter of BboxParams to 'pascal_voc' instead of 'coco'.
+        return (transformed_image, transformed_bboxes, class_labels)
 
-    # def pull_item(self, index):
-    #     img_id = self.ids[index]
-    #     if self.has_gt:
-    #         ann_ids = self.coco.getAnnIds(imgIds=img_id)
-    #         target = self.coco.loadAnns(ann_ids)
-    #     else:
-    #         target = []
-    #     crowd = [x for x in target if ('iscrowd' in x and x['iscrowd'])]
-    #     target = [x for x in target if not ('iscrowd' in x and x['iscrowd'])]
-    #     num_crowds = len(crowd)
-    #
-    #     # This is so we ensure that all crowd annotations are at the end of the array
-    #     target += crowd
-    #     file_name = self.coco.loadImgs(img_id)[0]['file_name']
-    #     path = osp.join(self.root, file_name)
-    #     img = cv2.imread(path)
-    #     height, width, _ = img.shape
-    #     if len(target) > 0: # 这样图像中有不是crowd的目标
-    #         masks = [self.coco.annToMask(obj).reshape(-1) for obj in target]
-    #         masks = np.vstack(masks)
-    #         masks = masks.reshape(-1, height, width)
-    #     if self.target_transform is not None and len(target) > 0:
-    #         target = self.target_transform(target, width, height)
-    #     return torch.from_numpy(img).permute(2, 0, 1), target, masks, height, width, num_crowds
 
 # if __name__=='__main__':
 #     dataset = COCODetection(val_image, val_info, transform=data_transforms)

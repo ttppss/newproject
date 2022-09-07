@@ -7,7 +7,6 @@ import torch
 import torchvision.transforms.functional as F
 from torchvision.utils import draw_bounding_boxes
 import numpy as np
-# from skimage.util import img_as_float
 
 from fvcore.nn import FlopCountAnalysis, flop_count_table
 import torchvision
@@ -15,6 +14,33 @@ from visdom import Visdom
 
 logger = logging.getLogger(__name__)
 viz = Visdom()
+
+CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+               'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
+               'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
+               'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
+               'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+               'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat',
+               'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+               'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+               'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+               'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+               'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+               'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
+               'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
+               'scissors', 'teddy bear', 'hair drier', 'toothbrush')
+
+COCO_LABEL_MAP = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8,
+                      9: 9, 10: 10, 11: 11, 13: 12, 14: 13, 15: 14, 16: 15, 17: 16,
+                      18: 17, 19: 18, 20: 19, 21: 20, 22: 21, 23: 22, 24: 23, 25: 24,
+                      27: 25, 28: 26, 31: 27, 32: 28, 33: 29, 34: 30, 35: 31, 36: 32,
+                      37: 33, 38: 34, 39: 35, 40: 36, 41: 37, 42: 38, 43: 39, 44: 40,
+                      46: 41, 47: 42, 48: 43, 49: 44, 50: 45, 51: 46, 52: 47, 53: 48,
+                      54: 49, 55: 50, 56: 51, 57: 52, 58: 53, 59: 54, 60: 55, 61: 56,
+                      62: 57, 63: 58, 64: 59, 65: 60, 67: 61, 70: 62, 72: 63, 73: 64,
+                      74: 65, 75: 66, 76: 67, 77: 68, 78: 69, 79: 70, 80: 71, 81: 72,
+                      82: 73, 84: 74, 85: 75, 86: 76, 87: 77, 88: 78, 89: 79, 90: 80}
+
 
 
 def create_logger(cfg, cfg_name):
@@ -91,15 +117,17 @@ def collate_fn(batch):
     """
 
     images = list()
-    annos = list()
+    bboxes = list()
+    labels = list()
 
     for b in batch:
         images.append(b[0])
-        annos.append(b[1])
+        bboxes.append(b[1])
+        labels.append(b[2])
 
     images = torch.stack(images, dim=0)
 
-    return images, annos
+    return images, bboxes, labels
 
 
 def xywh2xyxy(bboxes):
@@ -127,12 +155,15 @@ def visualize_data(data_loader, window_name, title):
 def visualize_data_with_bbox(data_loader, window_name, title):
     inputs = next(iter(data_loader))
     for i in range(inputs[0].shape[0]):
+        labels_num = inputs[2][i]
+        # draw_bounding_boxes only accepts string, so convert it from int to class name.
+        labels = [CLASSES[j] for j in labels_num]
         inp = torch.transpose(inputs[0][i], 0, 2)
         mean = torch.FloatTensor([0.485, 0.456, 0.406])
         std = torch.FloatTensor([0.229, 0.224, 0.225])
         inp = (std * 255) * inp + mean * 255
         inp = torch.transpose(inp, 0, 2)
-        inp = draw_bounding_boxes(inp.byte(), xywh2xyxy(torch.as_tensor(inputs[1][i])))
+        inp = draw_bounding_boxes(inp.byte(), torch.as_tensor(inputs[1][i]), labels)
         inputs[0][i] = inp
     out = torchvision.utils.make_grid(inputs[0], nrow=5)
     viz.images(out, win=window_name, opts={'title': title})

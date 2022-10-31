@@ -8,12 +8,15 @@ import warnings
 import torch
 
 from configs import cfg, update_cfg
-from tools.utils import create_logger
+from tools.utils import create_logger, get_criterion, get_optimizer, get_scheduler
 from visdom import Visdom
 from tools.utils import count_flop, collate_fn, visualize_data, visualize_data_with_bbox
 
 from models.builder import build_backbone
 from dataset.dataset_builder import build_dataset
+
+import pytorch_lightning as pl
+from models.lightning_model import LitAutoEncoder
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -85,7 +88,7 @@ def main():
     logger.info('\n' + '*' * 60)
 
     # calculate the number of parameters and FLOPs using dummy data.
-    dummy_data = torch.randn(1, 3, cfg.TRAIN.INPUT_SIZE[0], cfg.TRAIN.INPUT_SIZE[1]).to(cfg.DEVICE)
+    dummy_data = torch.randn(1, 3, cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]).to(cfg.DEVICE)
     count_flop(model, dummy_data)
 
     # construct the dataset
@@ -107,6 +110,11 @@ def main():
 
     visualize_data_with_bbox(train_loader, 'training data', 'training data visualization')
     visualize_data_with_bbox(val_loader, 'validation data', 'validation data visualization')
+
+    automodel = LitAutoEncoder(model)
+
+    trainer = pl.Trainer(limit_train_batches=100, max_epochs=1)
+    trainer.fit(model=automodel, train_dataloaders=train_loader)
 
 
 

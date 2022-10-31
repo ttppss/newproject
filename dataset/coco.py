@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from .dataset_builder import DATASET_REGISTRY
 from yacs.config import CfgNode
 import albumentations as A
+from albumentations.pytorch import ToTensorV2
 from tools.utils import SquarePad
 
 
@@ -32,6 +33,7 @@ def build_coco_dataset(cfg: CfgNode):
                 A.RandomRotate90(),
                 A.RandomBrightnessContrast(),
                 A.Normalize(),
+                ToTensorV2()
             ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'])),
             'test': A.Compose([
                 A.LongestMaxSize(max_size=max(cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]), interpolation=1),
@@ -40,6 +42,7 @@ def build_coco_dataset(cfg: CfgNode):
                               border_mode=0, value=(0, 0, 0)),
                 A.Resize(cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]),
                 A.Normalize(),
+                ToTensorV2()
             ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'])),
         }
     else:
@@ -291,9 +294,8 @@ class COCODetection(data.Dataset):
             if self.cfg.DATASET.ALBUMENTATION:
                 transformed = self.transform(image=image, bboxes=bboxes, class_labels=class_labels)
                 transformed_image = transformed['image']
-                # change the shape from [h,w,c] to [c,h,w], matching the output shape of torchvision
-                transformed_image = torch.from_numpy(transformed_image).permute(2,0,1)
-                transformed_bboxes = transformed['bboxes']
+                transformed_image = transformed_image
+                transformed_bboxes = torch.as_tensor(transformed['bboxes'])
             else:
                 image = Image.fromarray(image)
                 transformed_image = self.transform(image)
@@ -301,7 +303,7 @@ class COCODetection(data.Dataset):
 
         # Note: after using get_anno_info, the output bounding box is in the format of [xmin, ymin, xmax, ymax].
         #  so I changed the parameter of BboxParams to 'pascal_voc' instead of 'coco'.
-        return (transformed_image, transformed_bboxes, class_labels)
+        return transformed_image, transformed_bboxes, class_labels
 
 
 # if __name__=='__main__':

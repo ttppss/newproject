@@ -2,15 +2,16 @@ AUTO_RESUME: true
 GPUS: (0,)
 DATASET:
   TYPE: 'coco'
+  IMAGE_SIZE: [608, 608]
   ALBUMENTATION: true
   TRAIN_DATA_ROOT: '/home/zinan/dataset/tiny_coco-master_0/images/train2017'
   TEST_DATA_ROOT: '/home/zinan/dataset/tiny_coco-master_0/images/val2017'
   TRAIN_ANNO: '/home/zinan/dataset/tiny_coco-master_0/annotations/instances_train2017.json'
   TEST_ANNO: '/home/zinan/dataset/tiny_coco-master_0/annotations/instances_val2017.json'
 MODEL:
-  NAME: 'baseline'
+  NAME: 'yolo'
   BACKBONE:
-    NAME: 'resnet50'
+    NAME: 'darknet53'
     PRETRAINED_PATH: ''
   HEAD:
     NAME: 'simple_classifier_head'
@@ -30,5 +31,7 @@ TRAIN:
   LR: 0.001
   LR_DECAY: 0.95
   WEIGHT_DECAY: 1.0e-4
+  LOSS:
+    NAME: 'crossentropy'
 OUTPUT_PATH: '../output'
 DEVICE: 'cuda'

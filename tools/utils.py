@@ -5,8 +5,10 @@ import os
 import inspect
 import torch
 import torchvision.transforms.functional as F
+import torch.nn as nn
 from torchvision.utils import draw_bounding_boxes
 import numpy as np
+import torch.optim as optim
 
 from fvcore.nn import FlopCountAnalysis, flop_count_table
 import torchvision
@@ -136,6 +138,16 @@ def xywh2xyxy(bboxes):
     return bboxes
 
 
+def xyxy2xywh(bboxes):
+    """
+    change the coordinate from [xmin, ymin, xmax, ymax] to [xmin, ymin, width, height]
+    :param bboxes: tensor of shape [N, 4], N is the number of bounding boxes.
+    :return: bboxes: tensor of shape [N, 4] in transformed value.
+    """
+    bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 0]
+    bboxes[:, 3] = bboxes[:, 3] - bboxes[:, 1]
+    return bboxes
+
 def visualize_data(data_loader, window_name, title):
     # TODO: may need a more elegant way to put the images together
     # when dealing with object detection, the returning data format is like [[img, label], [img, label]]
@@ -163,7 +175,7 @@ def visualize_data_with_bbox(data_loader, window_name, title):
         std = torch.FloatTensor([0.229, 0.224, 0.225])
         inp = (std * 255) * inp + mean * 255
         inp = torch.transpose(inp, 0, 2)
-        inp = draw_bounding_boxes(inp.byte(), torch.as_tensor(inputs[1][i]), labels)
+        inp = draw_bounding_boxes(inp.byte(), inputs[1][i], labels, font_size=15)
         inputs[0][i] = inp
     out = torchvision.utils.make_grid(inputs[0], nrow=5)
     viz.images(out, win=window_name, opts={'title': title})
@@ -177,3 +189,43 @@ class SquarePad:
         vp = int((max_wh - h) / 2)
         padding = (hp, vp, hp, vp)
         return F.pad(image, padding, 0, 'constant')
+
+
+def get_criterion(cfg):
+    if cfg.TRAIN.LOSS.NAME == 'crossentropy':
+        loss = nn.CrossEntropyLoss()
+    elif cfg.TRAIN.LOSS.NAME == 'smoothl1':
+        loss = nn.L1Loss()
+
+
+    return loss
+
+
+def get_optimizer(cfg, model):
+    if cfg.TRAIN.OPTIMIZER == 'sgd':
+        optimizer = optim.SGD(
+            model.parameters(),
+            lr=cfg.TRAIN.LR,
+            momentum=cfg.TRAIN.MOMENTUM,
+            weight_decay=cfg.TRAIN.WEIGHT_DECAY,
+        )
+    elif cfg.TRAIN.OPTIMIZER == 'adam':
+        optimizer = optim.Adam(
+            model.parameters(),
+            lr=cfg.TRAIN.LR,
+        )
+    return optimizer
+
+
+def get_scheduler(cfg, optimizer):
+    if cfg.TRAIN.SCHEDULER == 'exp':
+        lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.TRAIN.LR_DECAY)
+    elif cfg.TRAIN.SCHEDULER == 'step':
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.TRAIN.STEP_SIZE,
+                                                       gamma=cfg.TRAIN.LR_DECAY)
+    elif cfg.TRAIN.SCHEDULER == 'multistep':
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg.TRAIN.LR_STEPS,
+                                                            gamma=cfg.TRAIN.LR_DECAY)
+    elif cfg.TRAIN.SCHEDULER == 'cos':
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.TRAIN.COSINE_T_MAX)
+    return lr_scheduler

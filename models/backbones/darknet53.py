@@ -18,7 +18,7 @@ class DarkResidualBlock(nn.Module):
     def __init__(self, in_channels):
         super(DarkResidualBlock, self).__init__()
 
-        reduced_channels = int(in_channels/2)
+        reduced_channels = int(in_channels / 2)
 
         self.layer1 = conv_batch(in_channels, reduced_channels, kernel_size=1, padding=0)
         self.layer2 = conv_batch(reduced_channels, in_channels)
@@ -33,10 +33,8 @@ class DarkResidualBlock(nn.Module):
 
 
 class Darknet53(nn.Module):
-    def __init__(self, block, num_classes):
+    def __init__(self, block):
         super(Darknet53, self).__init__()
-
-        self.num_classes = num_classes
 
         self.conv1 = conv_batch(3, 32)
         self.conv2 = conv_batch(32, 64, stride=2)
@@ -49,8 +47,8 @@ class Darknet53(nn.Module):
         self.residual_block4 = self.make_layer(block, in_channels=512, num_blocks=8)
         self.conv6 = conv_batch(512, 1024, stride=2)
         self.residual_block5 = self.make_layer(block, in_channels=1024, num_blocks=4)
-        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(1024, self.num_classes)
+        # self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.fc = nn.Linear(1024, self.num_classes)
 
     def forward(self, x):
         out = self.conv1(x)
@@ -64,9 +62,9 @@ class Darknet53(nn.Module):
         out = self.residual_block4(out)
         out = self.conv6(out)
         out = self.residual_block5(out)
-        out = self.global_avg_pool(out)
-        out = out.view(-1, 1024)
-        out = self.fc(out)
+        # out = self.global_avg_pool(out)
+        # out = out.view(-1, 1024)
+        # out = self.fc(out)
 
         return out
 
@@ -76,6 +74,7 @@ class Darknet53(nn.Module):
             layers.append(block(in_channels))
         return nn.Sequential(*layers)
 
+
 @BACKBONE_REGISTRY.register('darknet53')
-def DarkNet53(model_cfg:CfgNode):
-    return Darknet53(DarkResidualBlock, model_cfg.NUM_CLASSES)
+def darknet53():
+    return Darknet53(DarkResidualBlock)

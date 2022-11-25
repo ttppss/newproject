@@ -1,13 +1,15 @@
+# used to test the original much larger COCO dataset
+
 AUTO_RESUME: true
 GPUS: (0,)
 DATASET:
   TYPE: 'coco'
   IMAGE_SIZE: [448, 448]
   ALBUMENTATION: true
-  TRAIN_DATA_ROOT: '/home/zinan/dataset/minicoco/mini_train2017'
-  TEST_DATA_ROOT: '/home/zinan/dataset/minicoco/mini_val2017'
-  TRAIN_ANNO: '/home/zinan/dataset/minicoco/annotations/mini_instances_train2017.json'
-  TEST_ANNO: '/home/zinan/dataset/minicoco/annotations/mini_instances_val2017.json'
+  TRAIN_DATA_ROOT: '/home/zinan/dataset/coco/images/train2017'
+  TEST_DATA_ROOT: '/home/zinan/dataset/coco/images/val2017'
+  TRAIN_ANNO: '/home/zinan/dataset/coco/annotations/instances_train2017.json'
+  TEST_ANNO: '/home/zinan/dataset/coco/annotations/instances_val2017.json'
 MODEL:
   NAME: 'yolov1'
   BACKBONE:
@@ -25,7 +27,7 @@ MODEL:
     NUM_PREDICTIONS_PER_LOCATION: 2
     GRID_SIZE: 7
 TRAIN:
-  BATCH_SIZE: 3
+  BATCH_SIZE: 1
   SHUFFLE: true
   USE_GPU: true
   NUM_WORKERS: 4
@@ -37,6 +39,5 @@ TRAIN:
   WEIGHT_DECAY: 1.0e-4
   LOSS:
     NAME: 'yolov1_loss'
-  SAVE_EVERY_N_EPOCH: 5
-OUTPUT_PATH: 'output'
+OUTPUT_PATH: '../output'
 DEVICE: 'cuda'

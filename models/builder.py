@@ -10,7 +10,7 @@ LOSS_REGISTRY = Registry()
 
 
 def build_backbone(backbone_cfg: CfgNode):
-    backbone = BACKBONE_REGISTRY[backbone_cfg.BACKBONE.NAME](backbone_cfg)
+    backbone = BACKBONE_REGISTRY[backbone_cfg.BACKBONE.NAME]()
     return backbone
 
 
@@ -30,5 +30,5 @@ def build_model(model_cfg: CfgNode):
 
 
 def build_loss(loss_cfg: CfgNode):
-    model = LOSS_REGISTRY[loss_cfg.LOSS.NAME](loss_cfg)
+    model = LOSS_REGISTRY[loss_cfg.LOSS.NAME]()
     return model

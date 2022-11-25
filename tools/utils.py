@@ -9,10 +9,13 @@ import torch.nn as nn
 from torchvision.utils import draw_bounding_boxes
 import numpy as np
 import torch.optim as optim
+from tqdm import tqdm
 
 from fvcore.nn import FlopCountAnalysis, flop_count_table
 import torchvision
 from visdom import Visdom
+
+from tools.meter import AverageMeter
 
 logger = logging.getLogger(__name__)
 viz = Visdom()
@@ -175,7 +178,7 @@ def visualize_data_with_bbox(data_loader, window_name, title):
         std = torch.FloatTensor([0.229, 0.224, 0.225])
         inp = (std * 255) * inp + mean * 255
         inp = torch.transpose(inp, 0, 2)
-        inp = draw_bounding_boxes(inp.byte(), inputs[1][i], labels, font_size=15)
+        inp = draw_bounding_boxes(inp.byte(), inputs[1][i], labels, width=2, font_size=80)
         inputs[0][i] = inp
     out = torchvision.utils.make_grid(inputs[0], nrow=5)
     viz.images(out, win=window_name, opts={'title': title})
@@ -196,7 +199,8 @@ def get_criterion(cfg):
         loss = nn.CrossEntropyLoss()
     elif cfg.TRAIN.LOSS.NAME == 'smoothl1':
         loss = nn.L1Loss()
-
+    else:
+        raise ValueError("loss %s is not defined." % cfg.TRAIN.LOSS.NAME)
 
     return loss
 
@@ -206,7 +210,7 @@ def get_optimizer(cfg, model):
         optimizer = optim.SGD(
             model.parameters(),
             lr=cfg.TRAIN.LR,
-            momentum=cfg.TRAIN.MOMENTUM,
+            # momentum=cfg.TRAIN.MOMENTUM,
             weight_decay=cfg.TRAIN.WEIGHT_DECAY,
         )
     elif cfg.TRAIN.OPTIMIZER == 'adam':
@@ -229,3 +233,140 @@ def get_scheduler(cfg, optimizer):
     elif cfg.TRAIN.SCHEDULER == 'cos':
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.TRAIN.COSINE_T_MAX)
     return lr_scheduler
+
+
+def train_detection(cfg, epoch, model, optimizer, criterion, lr_scheduler, train_loader, train_dataset, device):
+    losses = AverageMeter()
+    h, w = cfg.DATASET.IMAGE_SIZE
+    bs = cfg.TRAIN.BATCH_SIZE
+    S, B, C = cfg.MODEL.YOLOV1.GRID_SIZE, cfg.MODEL.YOLOV1.NUM_PREDICTIONS_PER_LOCATION, cfg.MODEL.NUM_CLASSES
+    targets = torch.zeros(bs, S, S, 5 * B + C)
+
+    model.train()
+    print('Current Learning Rate: {:.5f}'.format(lr_scheduler.get_last_lr()[0]))
+
+    # print(next(iter(train_loader)))
+
+    for ii, (data, bbox, labels) in tqdm(enumerate(train_loader)):
+        inputs = data.to(device)
+        bboxes = [box for box in bbox]
+        labels = [label for label in labels]
+        optimizer.zero_grad()
+
+        for idx, bbox in enumerate(bboxes):
+            try:
+                # bbox = xyxy2xywh(bbox)
+                bbox /= torch.Tensor([w, h, w, h])
+                target = encode(cfg, bbox, labels[idx])
+                targets[idx, :] = target
+            except:
+                print('value error: ', bbox)
+                pass
+
+        predicted = model(inputs)
+        targets = targets.to(device)
+        loss = criterion(predicted, targets)
+        loss.backward()
+        optimizer.step()
+        # total_loss += totalloss
+        # _, pred = torch.max(score[1], 1)
+
+        # correct += torch.sum(pred == targets)
+        # epoch_accuracy = correct / len(train_dataset)
+        losses.update(loss.item(), inputs.size(0))
+
+        if ii != 0 and (ii % cfg.TRAIN.PRINT_FREQ == 0 or ii + 1 == len(train_loader)):
+            # print('reached breakpoint')
+            msg = 'Epoch: [{0}][{1}/{2}]\t' \
+                  'Training Loss {loss.val:.5f} ({loss.avg:.5f})\t'.format(
+                epoch, ii, len(train_loader), loss=losses)
+            print(msg)
+            logger.info(msg)
+
+    lr_scheduler.step()
+    return losses.avg
+
+
+def val_detection(cfg, epoch, model, optimizer, criterion, val_loader, val_dataset, final_output_dir, best_val_loss, device):
+    model.eval()
+    correct = 0
+    total_loss = 0
+    val_losses = AverageMeter()
+    h, w = cfg.DATASET.IMAGE_SIZE
+    bs = cfg.TRAIN.BATCH_SIZE
+    S, B, C = cfg.MODEL.YOLOV1.GRID_SIZE, cfg.MODEL.YOLOV1.NUM_PREDICTIONS_PER_LOCATION, cfg.MODEL.NUM_CLASSES
+    targets = torch.zeros(bs, S, S, 5 * B + C)
+
+    # print(next(iter(train_loader)))
+
+    for ii, (data, bbox, labels) in tqdm(enumerate(val_loader)):
+        inputs = data.to(device)
+        bboxes = [box for box in bbox]
+        labels = [label for label in labels]
+        optimizer.zero_grad()
+
+        for idx, bbox in enumerate(bboxes):
+            try:
+                # bbox = xyxy2xywh(bbox)
+                bbox /= torch.Tensor([w, h, w, h])
+                target = encode(cfg, bbox, labels[idx])
+                targets[idx, :] = target
+            except:
+                print('value error: ', bbox)
+                pass
+
+        with torch.no_grad():
+            predicted = model(inputs)
+        targets = targets.to(device)
+        loss = criterion(predicted, targets)
+
+        # total_loss += totalloss
+        # _, pred = torch.max(score[1], 1)
+
+        # correct += torch.sum(pred == targets)
+        # epoch_accuracy = correct / len(train_dataset)
+        val_losses.update(loss.item(), inputs.size(0))
+
+        if ii + 1 == len(val_loader):
+            # print('reached breakpoint')
+            msg = 'Validataion Loss {loss.val:.5f} ({loss.avg:.5f})\t'.format(
+                loss=val_losses)
+            print(msg)
+            logger.info(msg)
+
+    return val_losses.avg
+
+def encode(cfg, boxes, labels):
+    """ Encode box coordinates and class labels as one target tensor.
+    Args:
+        boxes: (tensor) [[x1, y1, x2, y2]_obj1, ...], normalized from 0.0 to 1.0 w.r.t. image width/height.
+        labels: (tensor) [c_obj1, c_obj2, ...]
+    Returns:
+        An encoded tensor sized [S, S, 5 x B + C], 5=(x, y, w, h, conf)
+    """
+
+    S, B, C = cfg.MODEL.YOLOV1.GRID_SIZE, cfg.MODEL.YOLOV1.NUM_PREDICTIONS_PER_LOCATION, cfg.MODEL.NUM_CLASSES
+    N = 5 * B + C
+
+    target = torch.zeros(S, S, N)
+    cell_size = 1.0 / float(S)
+    boxes_wh = boxes[:, 2:] - boxes[:, :2]  # width and height for each box, [n, 2]
+    boxes_xy = (boxes[:, 2:] + boxes[:, :2]) / 2.0  # center x & y for each box, [n, 2]
+    for b in range(boxes.size(0)):
+        xy, wh, label = boxes_xy[b], boxes_wh[b], int(labels[b])
+
+        ij = (xy / cell_size).ceil() - 1.0
+        i, j = int(ij[0]), int(ij[1])  # y & x index which represents its location on the grid.
+        x0y0 = ij * cell_size  # x & y of the cell left-top corner.
+        xy_normalized = (xy - x0y0) / cell_size  # x & y of the box on the cell, normalized from 0.0 to 1.0.
+
+        # TBM, remove redundant dimensions from target tensor.
+        # To remove these, loss implementation also has to be modified.
+        for k in range(B):
+            s = 5 * k
+            target[j, i, s:s + 2] = xy_normalized
+            target[j, i, s + 2:s + 4] = wh
+            target[j, i, s + 4] = 1.0
+        target[j, i, 5 * B + label] = 1.0
+
+    return target

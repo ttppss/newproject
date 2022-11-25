@@ -4,23 +4,20 @@ import os
 import os.path as osp
 import time
 import warnings
-import numpy as np
 
 import torch
 
 import sys
 sys.path.append('/home/zinan/pycharmproject/newproject')
-
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
+# sys.path.append('/data2/zinan_xiong/newproject')
 
 # import configs.config
 from configs import get_cfg_defaults, update_cfg
 from tools.utils import create_logger, get_criterion, get_optimizer, get_scheduler
 from visdom import Visdom
-from tools.utils import count_flop, collate_fn, visualize_data, visualize_data_with_bbox, train_detection, val_detection
+from tools.utils import count_flop, collate_fn, visualize_data, visualize_data_with_bbox
 
-from models.builder import build_backbone, build_model, build_loss
+from models.builder import build_backbone, build_model
 from dataset.dataset_builder import build_dataset
 
 import pytorch_lightning as pl
@@ -65,7 +62,6 @@ def main():
     cfg = get_cfg_defaults()
     args = parse_args()
     update_cfg(cfg, args)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.work_dir is not None:
         # update configs according to CLI args if args.work_dir is not None
@@ -90,15 +86,16 @@ def main():
     model = build_model(cfg)
 
     # decide if we use data parallel of not according to number of GPU.
-    if cfg.GPUS:
-        model = torch.nn.DataParallel(model, device_ids=cfg.GPUS).to(device)
-    else:
-        model = model.to(device)
+    # if cfg.gpu_ids > 0:
+    #     model = torch.nn.DataParallel(model, device_ids=cfg.GPUS)
+    # else:
+    #     model = model
+
     logger.info(f"\nmodel structure: \n{model}")
     logger.info('\n' + '*' * 60)
 
     # calculate the number of parameters and FLOPs using dummy data.
-    dummy_data = torch.randn(1, 3, cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1]).to(device)
+    dummy_data = torch.randn(1, 3, cfg.DATASET.IMAGE_SIZE[0], cfg.DATASET.IMAGE_SIZE[1])
     count_flop(model, dummy_data)
 
     # construct the dataset
@@ -108,81 +105,24 @@ def main():
         batch_size=cfg.TRAIN.BATCH_SIZE,
         shuffle=cfg.TRAIN.SHUFFLE,
         num_workers=cfg.TRAIN.NUM_WORKERS,
-        collate_fn=collate_fn,
-        drop_last=True
+        collate_fn=collate_fn
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=cfg.TRAIN.BATCH_SIZE,
         shuffle=False,
         num_workers=cfg.TRAIN.NUM_WORKERS,
-        collate_fn=collate_fn,
-        drop_last=True
+        collate_fn=collate_fn
     )
 
     visualize_data_with_bbox(train_loader, 'training data', 'training data visualization')
     visualize_data_with_bbox(val_loader, 'validation data', 'validation data visualization')
 
-    # automodel = LitAutoEncoder(model)
-    #
-    # trainer = pl.Trainer(limit_train_batches=16, max_epochs=3, log_every_n_steps=1, accelerator='gpu', devices=1)
-    # trainer.fit(model=automodel, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    automodel = LitAutoEncoder(model)
 
-    best_perf = 0.0
-    best_model = False
-    last_epoch = -1
-    best_val_loss = np.inf
-    optimizer = get_optimizer(cfg, model)
-    # criterion = get_criterion(cfg)
-    criterion = build_loss(cfg.TRAIN)
-    checkpoint_file = os.path.join(final_output_dir, 'checkpoint.pth')
-
-    if cfg.AUTO_RESUME and os.path.exists(checkpoint_file):
-        logger.info('******** Loading checkpoint file {} ********'.format(checkpoint_file))
-        checkpoint = torch.load(checkpoint_file)
-        best_perf = checkpoint['perf']
-        last_epoch = checkpoint['epoch']
-        model.module.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        logger.info('******** checkpoint loaded, continue training from epoch {} ********'.format(last_epoch))
-
-    lr_scheduler = get_scheduler(cfg, optimizer)
-
-    for epoch in range(cfg.TRAIN.MAX_EPOCH):
-        train_loss = train_detection(cfg, epoch, model, optimizer, criterion, lr_scheduler, train_loader,
-                                      train_dataset, device)
-        logger.info('Validating Model...')
-        val_loss = val_detection(cfg, epoch, model, optimizer, criterion,
-                                 val_loader, val_dataset, final_output_dir, best_val_loss, device)
-
-        if best_val_loss > val_loss:
-            best_val_loss = val_loss
-            torch.save(model.state_dict(), os.path.join(final_output_dir, 'model_best.pth'))
-
-        if epoch % cfg.TRAIN.SAVE_EVERY_N_EPOCH == 0:
-            torch.save(model.state_dict(), os.path.join(final_output_dir, 'epoch_' + str(epoch) + '.pth'))
-
-        # if val_accuracy > best_perf:
-        #     best_perf = val_accuracy
-        #     best_model = True
-        # else:
-        #     best_model = False
-
-        logger.info('saving checkpoint to {}'.format(final_output_dir))
-        # save_checkpoint(
-        #     {'epoch': epoch + 1,
-        #      'model': cfg.MODEL.NAME,
-        #      'state_dict': model.module.state_dict(),
-        #      'best_state_dict': model.module.state_dict(),
-        #      'perf': val_accuracy,
-        #      'optimizer': optimizer.state_dict(),
-        #      }, best_model, final_output_dir
-        # )
-
-    final_model_state_file = os.path.join(final_output_dir, 'final_state.pth')
-    logger.info('**************** best validation accuracy: {} ****************'.format(best_val_loss))
-    logger.info('******** saving final model state to {} ********'.format(final_model_state_file))
-    torch.save(model.module.state_dict(), final_model_state_file)
+    # todo: wield: if not using accelerator='cpu', it will cause an error: Expected all tensors to be on the same device.
+    trainer = pl.Trainer(limit_train_batches=256, max_epochs=3, log_every_n_steps=10, accelerator='cpu', gpus='0')
+    trainer.fit(model=automodel, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
 
 

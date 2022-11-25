@@ -4,10 +4,10 @@ DATASET:
   TYPE: 'coco'
   IMAGE_SIZE: [448, 448]
   ALBUMENTATION: true
-  TRAIN_DATA_ROOT: '/home/zinan/dataset/minicoco/mini_train2017'
-  TEST_DATA_ROOT: '/home/zinan/dataset/minicoco/mini_val2017'
-  TRAIN_ANNO: '/home/zinan/dataset/minicoco/annotations/mini_instances_train2017.json'
-  TEST_ANNO: '/home/zinan/dataset/minicoco/annotations/mini_instances_val2017.json'
+  TRAIN_DATA_ROOT: '/data2/zinan_xiong/dataset/coco/train2017'
+  TEST_DATA_ROOT: '/data2/zinan_xiong/dataset/coco//val2017'
+  TRAIN_ANNO: '/data2/zinan_xiong/dataset/coco/instances_train2017.json'
+  TEST_ANNO: '/data2/zinan_xiong/dataset/coco/instances_val2017.json'
 MODEL:
   NAME: 'yolov1'
   BACKBONE:
@@ -21,22 +21,18 @@ MODEL:
     BN: True
     ACTIVATION: 'leaky_relu'
   NUM_CLASSES: 80
-  YOLOV1:
-    NUM_PREDICTIONS_PER_LOCATION: 2
-    GRID_SIZE: 7
 TRAIN:
-  BATCH_SIZE: 3
+  BATCH_SIZE: 1
   SHUFFLE: true
   USE_GPU: true
   NUM_WORKERS: 4
   PRINT_FREQ: 30
   MAX_EPOCH: 10
-  OPTIMIZER: 'sgd'
+  OPTIMIZER: 'adam'
   LR: 0.001
   LR_DECAY: 0.95
   WEIGHT_DECAY: 1.0e-4
   LOSS:
     NAME: 'yolov1_loss'
-  SAVE_EVERY_N_EPOCH: 5
-OUTPUT_PATH: 'output'
+OUTPUT_PATH: '../output'
 DEVICE: 'cuda'
